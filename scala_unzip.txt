@@ -1,0 +1,51 @@
+%scala
+import scala.sys.process._
+import java.nio.file.{Files, Paths, Path}
+import scala.collection.JavaConverters._
+
+val zipFileDbfs = "dbfs:/mnt/flights/sample_archive.zip"
+val extractionPathDbfs = "dbfs:/mnt/flights/extracted/"
+
+// Check if the zip file exists in DBFS
+if (dbutils.fs.ls("/mnt/flights/").exists(_.name == "sample_archive.zip")) {
+  println(s"File exists: $zipFileDbfs")
+
+  // Create a temporary directory in the local filesystem
+  val tmpDir = Files.createTempDirectory("sample_archive_extraction").toString
+
+  // Copy the file from DBFS to the temporary directory
+  dbutils.fs.cp(zipFileDbfs, s"file://$tmpDir/sample_archive.zip", recurse = false)
+
+  // Check if the file was copied successfully
+  if (Files.exists(Paths.get(s"$tmpDir/sample_archive.zip"))) {
+    println(s"File copied successfully to the temporary directory: $tmpDir")
+
+    // Unzipping the file using the shell command
+    val unzipCommand = s"unzip $tmpDir/sample_archive.zip -d $tmpDir"
+    val unzipProcess = Process(unzipCommand).!!
+
+    println(s"Unzip command output: $unzipProcess")
+
+    // Optionally, list the files after extraction
+    val filesAfterExtraction = Process(s"ls $tmpDir").!!
+    println(s"Files in $tmpDir after extraction: $filesAfterExtraction")
+
+    // Filter and copy non-zip and non-crc files back to DBFS
+    Files.list(Paths.get(tmpDir)).iterator().asScala
+      .filter(path => !path.getFileName.toString.endsWith(".zip") && !path.getFileName.toString.endsWith(".crc")) // Filter out .zip and .crc files
+      .foreach { filePath =>
+        val dbfsPath = s"$extractionPathDbfs${filePath.getFileName}"
+        dbutils.fs.cp(s"file://$filePath", dbfsPath, recurse = false)
+        println(s"Copied $filePath to DBFS: $dbfsPath")
+      }
+
+  } else {
+    println(s"Failed to copy file to temporary directory: $tmpDir")
+  }
+
+  // Clean up the temporary directory
+  dbutils.fs.rm(s"file://$tmpDir", recurse = true)
+
+} else {
+  println(s"File not found: $zipFileDbfs")
+}
