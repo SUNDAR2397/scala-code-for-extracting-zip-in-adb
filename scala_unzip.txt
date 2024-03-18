@@ -72,3 +72,9 @@ def process_file(file_path):
     
     return df  # You might want to return, save, or directly analyze the DataFrame
 
+# Example of processing a specific file
+file_to_process = "/path/to/your/file.csv"  # Adjust the path to your file
+processed_df = process_file(file_to_process)
+
+# You can now perform further analysis, save or display the processed DataFrame
+
